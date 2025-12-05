@@ -51,31 +51,30 @@
     <div class="controls">
         <div class="instruction">
             <strong>手順:</strong><br>
-            1. パーツを選んで描く<br>
-            2. 「データ送信」を押す（絵は消えません）<br>
-            3. 次のパーツを選んで描く...<br>
-            4. 全部描き終わったら「全消去」で次の絵へ
+            1. 下絵を選ぶ（キャラ名は自動設定されます）<br>
+            2. 感情を選ぶ<br>
+            3. 自由に描く<br>
+            4. 「データ送信」で保存
         </div>
         <br>
 
         <label for="labelInput">被験者ラベル (ID):</label>
-        <input type="text" id="labelInput" value="1" placeholder="例: 1">
+        <input type="text" id="labelInput" value="0" placeholder="例: 0">
 
-        <label for="charName">キャラクター名:</label>
-        <input type="text" id="charName" value="dra" placeholder="例: dra, an">
+        <label for="charName">キャラクター名 (自動設定):</label>
+        <input type="text" id="charName" value="" readonly style="background-color: #e9ecef; color: #555;">
+
+        <label for="bgImageSelect" style="font-weight:bold; margin-top: 15px;">下絵 (ガイド画像):</label>
+        <select id="bgImageSelect" onchange="changeBgImage()">
+            <option value="sample.jpg">サンプル (sample)</option>
+            <option value="noumen.jpg">能面</option>
+            <option value="patthi.jpg">ぱっちぃ</option>
+        </select>
 
         <label for="emotionSelect">感情:</label>
         <select id="emotionSelect">
             <option value="angry">怒り (angry)</option>
             <option value="happy">喜び (happy)</option>
-        </select>
-
-        <label for="bgImageSelect" style="font-weight:bold; margin-top: 15px;">下絵 (ガイド画像):</label>
-        <select id="bgImageSelect" onchange="changeBgImage()">
-            <option value="sample.jpg">サンプル</option>
-            <option value="noumen.jpg">能面</option>
-            <option value="patthi.jpg">ぱっちぃ</option>
-            <option value="">なし (背景を消す)</option>
         </select>
 
         <div id="statusMessage" class="status" style="display:none;"></div>
@@ -98,16 +97,21 @@
     function changeBgImage() {
         const select = document.getElementById('bgImageSelect');
         const fileName = select.value;
+        const charInput = document.getElementById('charName'); // キャラ名入力欄を取得
         
         if (fileName === "") {
             canvas.style.backgroundImage = 'none';
+            charInput.value = "unknown"; // 画像なしの場合は unknown 等にしておく
         } else {
-            // 1. ファイル名から拡張子を取り除き、_mask.jpg をつけた名前を作る
-            // 例: "doraemon.jpg" -> "doraemon_mask.jpg"
-            const maskName = fileName.replace(/\.[^/.]+$/, "") + "_mask.jpg";
+            // 1. ファイル名から拡張子を取り除く (noumen.jpg -> noumen)
+            // これをキャラクター名としてセット
+            const nameBase = fileName.replace(/\.[^/.]+$/, "");
+            charInput.value = nameBase;
 
-            // 2. CSSの background-image を設定
-            // 記述順序: 一番上が [マスク]、次が [白背景]、一番下が [下絵]
+            // 2. マスク画像のファイル名作成 (noumen_mask.jpg)
+            const maskName = nameBase + "_mask.jpg";
+
+            // 3. 背景設定 (マスク -> 白 -> 下絵)
             canvas.style.backgroundImage = `
                 url('images/${maskName}'),
                 linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
@@ -115,7 +119,7 @@
             `;
             
             // 表示設定
-            canvas.style.backgroundSize = 'contain, contain, contain'; // 全てのレイヤーをcontainに
+            canvas.style.backgroundSize = 'contain, contain, contain';
             canvas.style.backgroundRepeat = 'no-repeat, no-repeat, no-repeat';
             canvas.style.backgroundPosition = 'center, center, center';
         }
