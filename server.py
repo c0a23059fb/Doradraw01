@@ -3,7 +3,7 @@ import os
 import sys
 
 
-PORT = 8888
+PORT = 8080
 
 # CGIハンドラの設定
 # これにより、cgi-bin または cgi_data フォルダ内のスクリプトが実行可能になります
