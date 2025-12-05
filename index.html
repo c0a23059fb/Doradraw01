@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>キャラクター描画データ収集</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .canvas-area { border: 2px solid #333; cursor: crosshair; touch-action: none; background: #fff; }
+        .controls { flex: 1; min-width: 300px; }
+        .reference-img { width: 100%; height: 200px; background: #eee; display: flex; align-items: center; justify-content: center; border: 1px dashed #ccc; margin-bottom: 10px; }
+        .status { margin-top: 10px; padding: 10px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin-right: 5px; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="text"], select { padding: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+        .instruction { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<h1>キャラクター描画データ収集</h1>
+
+<div class="container">
+    <div>
+        <!-- 描画エリア -->
+        <canvas id="drawCanvas" width="400" height="400" class="canvas-area"></canvas>
+        <div style="margin-top: 5px;">
+            <button onclick="clearCanvas()">全消去</button>
+            <button onclick="sendData()" style="background-color: #007bff; color: white;">データ送信</button>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="instruction">
+            <strong>手順:</strong><br>
+            1. パーツを選んで描く<br>
+            2. 「データ送信」を押す（絵は消えません）<br>
+            3. 次のパーツを選んで描く...<br>
+            4. 全部描き終わったら「全消去」で次の絵へ
+        </div>
+        <br>
+
+        <label for="labelInput">被験者ラベル (ID):</label>
+        <input type="text" id="labelInput" value="1" placeholder="例: 1">
+
+        <label for="charName">キャラクター名:</label>
+        <input type="text" id="charName" value="dra" placeholder="例: dra, an">
+
+        <label for="partSelect" style="font-weight:bold; color:#d63384;">現在描画中のパーツ:</label>
+        <select id="partSelect">
+            <option value="right_eye">右目 (right_eye)</option>
+            <option value="left_eye">左目 (left_eye)</option>
+            <option value="nose">鼻 (nose)</option>
+            <option value="mouth">口 (mouth)</option>
+        </select>
+
+        <div id="statusMessage" class="status" style="display:none;"></div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    
+    // 現在描いているパーツのデータだけを一時保存する配列
+    let currentStrokeData = [];
+
+    // イベントリスナー設定
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    
+    canvas.addEventListener('touchstart', (e) => { startDrawing(e.touches[0]); e.preventDefault(); });
+    canvas.addEventListener('touchmove', (e) => { draw(e.touches[0]); e.preventDefault(); });
+    canvas.addEventListener('touchend', (e) => { stopDrawing(); e.preventDefault(); });
+
+    function getPos(event) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: Math.round(event.clientX - rect.left),
+            y: Math.round(event.clientY - rect.top)
+        };
+    }
+
+    function startDrawing(event) {
+        isDrawing = true;
+        const pos = getPos(event);
+        
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        recordPoint(pos.x, pos.y);
+    }
+
+    function draw(event) {
+        if (!isDrawing) return;
+        const pos = getPos(event);
+        
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#000';
+        
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        
+        recordPoint(pos.x, pos.y);
+    }
+
+    function stopDrawing() {
+        if (isDrawing) {
+            isDrawing = false;
+            ctx.closePath();
+        }
+    }
+
+    function recordPoint(x, y) {
+        // 現在選択中のパーツのデータとして記録
+        currentStrokeData.push({ x: x, y: y });
+    }
+
+    function clearCanvas() {
+        // 画面もデータも完全にリセット（次のキャラクター用）
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        currentStrokeData = [];
+        showStatus('キャンバスをリセットしました', 'success');
+    }
+
+    async function sendData() {
+        if (currentStrokeData.length === 0) {
+            showStatus('描画データがありません。', 'error');
+            return;
+        }
+
+        const label = document.getElementById('labelInput').value;
+        const charName = document.getElementById('charName').value;
+        const part = document.getElementById('partSelect').value;
+
+        const payload = {
+            label: label,
+            charName: charName,
+            part: part,
+            points: currentStrokeData
+        };
+
+        showStatus('送信中...', 'success');
+
+        try {
+            // サーバー設定に合わせて /cgi-bin/ または /cgi_data/ を使用
+            // 修正版server.pyを使っていればどちらでも動きますが、念のため cgi-bin 推奨
+            const response = await fetch('/cgi-bin/save_data.py', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                
+                // 【重要】送信成功時の処理を変更
+                // 1. 画面は消さない (ctx.clearRectしない)
+                // 2. データ配列だけ空にする (次のパーツ用にリセット)
+                currentStrokeData = []; 
+                
+                showStatus(`「${part}」を保存しました。\n絵は残っています。次のパーツを選んで描いてください。`, 'success');
+                
+            } else {
+                const text = await response.text();
+                showStatus(`エラー: ${text}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showStatus(`通信エラー: サーバーを確認してください`, 'error');
+        }
+    }
+
+    function showStatus(msg, type='success') {
+        const el = document.getElementById('statusMessage');
+        el.style.display = msg ? 'block' : 'none';
+        el.innerText = msg;
+        el.className = 'status ' + type;
+    }
+</script>
+
+</body>
+</html>
