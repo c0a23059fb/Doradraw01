@@ -64,6 +64,12 @@
         <label for="charName">キャラクター名:</label>
         <input type="text" id="charName" value="dra" placeholder="例: dra, an">
 
+        <label for="emotionSelect">感情:</label>
+        <select id="emotionSelect">
+            <option value="angry">怒り (angry)</option>
+            <option value="happy">喜び (happy)</option>
+        </select>
+
         <label for="bgImageSelect" style="font-weight:bold; margin-top: 15px;">下絵 (ガイド画像):</label>
         <select id="bgImageSelect" onchange="changeBgImage()">
             <option value="sample.jpg">サンプル</option>
@@ -203,23 +209,21 @@
 
         const label = document.getElementById('labelInput').value;
         const charName = document.getElementById('charName').value;
+        
+        // 【追加】感情ラベルを取得
+        const emotion = document.getElementById('emotionSelect').value;
 
         // 1. 全ストロークをパーツごとに分類・結合する
-        // 構造: { 'left_eye': [{x,y},...], 'right_eye': [...], 'mouth': [...] }
         let partsData = {
             'left_eye': [],
             'right_eye': [],
             'mouth': []
         };
 
-        let detectedCounts = { 'left_eye': 0, 'right_eye': 0, 'mouth': 0 };
-
         for (let stroke of allStrokes) {
             const partName = detectPart(stroke);
             if (partsData[partName]) {
-                // 同じパーツの線はつなげて1つのデータにする
                 partsData[partName] = partsData[partName].concat(stroke);
-                detectedCounts[partName]++;
             }
         }
 
@@ -233,11 +237,11 @@
                     label: label,
                     charName: charName,
                     part: partName,
+                    emotion: emotion, // 【追加】ここにも感情データを含める
                     points: partsData[partName]
                 };
                 partsToSend.push(partName);
                 
-                // 送信処理 (非同期)
                 const p = fetch('/cgi-bin/save_data.py', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -258,15 +262,13 @@
 
         showStatus(`送信中... (${partsToSend.join(', ')})`, 'success');
 
-        // 3. 全ての送信が完了するのを待つ
         try {
             await Promise.all(promises);
             
-            // 送信完了後の処理
-            showStatus(`保存完了！\n送信済み: ${partsToSend.join(', ')}\n(自動でリセットしました)`, 'success');
+            // 成功時のメッセージに保存先フォルダのヒントを表示
+            showStatus(`保存完了！\nフォルダ: data/${emotion}/\n送信済み: ${partsToSend.join(', ')}`, 'success');
             
-            // 次の絵を描きやすくするため、キャンバスを自動クリア
-            // ※絵を残したい場合は以下の2行を削除してください
+            // 次の絵のためにリセット
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             allStrokes = [];
 
