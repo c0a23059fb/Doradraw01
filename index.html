@@ -8,19 +8,17 @@
         body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
 
-        <!-- .canvas-area { border: 2px solid #333; cursor: crosshair; touch-action: none; background: #fff; } -->
         .canvas-area { 
             border: 2px solid #333; 
             cursor: crosshair; 
             touch-action: none;
             
-            /* 背景画像をURLで指定 (画像のパスは適宜変更してください) */
-            background-image: url('images/sample.jpg');
+            /* 変更点: linear-gradient(...) を追加 */
+            /* 白色の50% (0.5) を画像の上に重ねます */
+            background-image: linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)), url('images/doraemon.jpg');
             
-            /* 画像の表示サイズ設定 */
-            background-size: contain;  /* 画像全体が収まるように表示 (縦横比維持) */
-            /* background-size: 100% 100%; にするとキャンバスいっぱいに引き伸ばされます */
-            
+            /* 以下はそのまま */
+            background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
         }
@@ -205,24 +203,23 @@
     }
 
     // 背景画像を切り替える関数
-    function changeBgImage() {
-        const select = document.getElementById('bgImageSelect');
-        const fileName = select.value;
+function changeBgImage() {
+    const select = document.getElementById('bgImageSelect');
+    const fileName = select.value;
 
-        if (fileName === "") {
-            // 「なし」が選ばれたら背景を消す
-            canvas.style.backgroundImage = 'none';
-        } else {
-            // imagesフォルダのパスと結合して設定
-            // キャッシュ対策で ?v=... をつけると画像差し替え時に反映されやすくなります
-            canvas.style.backgroundImage = `url('images/${fileName}')`;
-            
-            // 表示設定（念のため再設定）
-            canvas.style.backgroundSize = 'contain';
-            canvas.style.backgroundRepeat = 'no-repeat';
-            canvas.style.backgroundPosition = 'center';
-        }
+    if (fileName === "") {
+        // 「なし」の場合
+        canvas.style.backgroundImage = 'none';
+    } else {
+        // 変更点: ここでも linear-gradient を追加してパスと組み合わせる
+        canvas.style.backgroundImage = `linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('images/${fileName}')`;
+        
+        // 表示設定（念のため）
+        canvas.style.backgroundSize = 'contain';
+        canvas.style.backgroundRepeat = 'no-repeat';
+        canvas.style.backgroundPosition = 'center';
     }
+}
 
 // ページ読み込み時に、初期選択されている画像を表示する
 window.onload = function() {
