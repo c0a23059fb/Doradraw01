@@ -94,17 +94,30 @@
     // 現在描いている最中の線
     let currentStroke = [];
 
-    // --- 画像切り替え機能 (変更なし) ---
+    // --- 画像切り替え機能 ---
     function changeBgImage() {
         const select = document.getElementById('bgImageSelect');
         const fileName = select.value;
+        
         if (fileName === "") {
             canvas.style.backgroundImage = 'none';
         } else {
-            canvas.style.backgroundImage = `linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('images/${fileName}')`;
-            canvas.style.backgroundSize = 'contain';
-            canvas.style.backgroundRepeat = 'no-repeat';
-            canvas.style.backgroundPosition = 'center';
+            // 1. ファイル名から拡張子を取り除き、_mask.jpg をつけた名前を作る
+            // 例: "doraemon.jpg" -> "doraemon_mask.jpg"
+            const maskName = fileName.replace(/\.[^/.]+$/, "") + "_mask.jpg";
+
+            // 2. CSSの background-image を設定
+            // 記述順序: 一番上が [マスク]、次が [白背景]、一番下が [下絵]
+            canvas.style.backgroundImage = `
+                url('images/${maskName}'),
+                linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
+                url('images/${fileName}')
+            `;
+            
+            // 表示設定
+            canvas.style.backgroundSize = 'contain, contain, contain'; // 全てのレイヤーをcontainに
+            canvas.style.backgroundRepeat = 'no-repeat, no-repeat, no-repeat';
+            canvas.style.backgroundPosition = 'center, center, center';
         }
     }
     window.onload = function() { changeBgImage(); };
