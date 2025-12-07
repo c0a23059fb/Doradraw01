@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>キャラクター描画データ収集</title>
+    <title>Dradraw</title>
     <style>
         body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
 
-        .canvas-area { 
-            border: 2px solid #333; 
-            cursor: crosshair; 
+        .canvas-area {
+            border: 2px solid #333;
+            cursor: crosshair;
             touch-action: none;
-            
+
             /* 変更点: linear-gradient(...) を追加 */
             /* 白色の50% (0.5) を画像の上に重ねます */
             background-image: linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)), url('images/doraemon.jpg');
-            
-            /* 以下はそのまま */
+
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
@@ -40,7 +39,6 @@
 
 <div class="container">
     <div>
-        <!-- 描画エリア -->
         <canvas id="drawCanvas" width="400" height="400" class="canvas-area"></canvas>
         <div style="margin-top: 5px;">
             <button onclick="clearCanvas()">全消去</button>
@@ -205,7 +203,6 @@
         const centerX = canvas.width / 2;
         const centerY = 286;
 
-        // 座標判定 (鼻は廃止)
         if (avgY > centerY) {
             return 'mouth'; // 下半分
         } else {
@@ -226,8 +223,6 @@
 
         const label = document.getElementById('labelInput').value;
         const charName = document.getElementById('charName').value;
-        
-        // 【追加】感情ラベルを取得
         const emotion = document.getElementById('emotionSelect').value;
 
         // 1. 全ストロークをパーツごとに分類・結合する
@@ -244,6 +239,20 @@
             }
         }
 
+        // ==========================================
+        // 追加機能: 3パーツ揃っているかチェック
+        // ==========================================
+        let missing = [];
+        if (partsData['right_eye'].length === 0) missing.push("右目");
+        if (partsData['left_eye'].length === 0) missing.push("左目");
+        if (partsData['mouth'].length === 0) missing.push("口");
+
+        if (missing.length > 0) {
+            showStatus(`すべてのパーツを描いてください。\n不足: ${missing.join(', ')}`, 'error');
+            return; // ここで処理を中断して送信させない
+        }
+        // ==========================================
+
         // 2. データが存在するパーツだけ送信リストに入れる
         let promises = [];
         let partsToSend = [];
@@ -254,7 +263,7 @@
                     label: label,
                     charName: charName,
                     part: partName,
-                    emotion: emotion, // 【追加】ここにも感情データを含める
+                    emotion: emotion,
                     points: partsData[partName]
                 };
                 partsToSend.push(partName);
@@ -272,17 +281,11 @@
             }
         }
 
-        if (promises.length === 0) {
-            showStatus('有効なパーツとして判定できませんでした。', 'error');
-            return;
-        }
-
         showStatus(`送信中... (${partsToSend.join(', ')})`, 'success');
 
         try {
             await Promise.all(promises);
             
-            // 成功時のメッセージに保存先フォルダのヒントを表示
             showStatus(`保存完了！\nフォルダ: data/${emotion}/\n送信済み: ${partsToSend.join(', ')}`, 'success');
             
             // 次の絵のためにリセット
