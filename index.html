@@ -8,22 +8,17 @@
         body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
 
-        .canvas-area {
-            border: 2px solid #333;
-            cursor: crosshair;
+        .canvas-area { 
+            border: 2px solid #333; 
+            cursor: crosshair; 
             touch-action: none;
-
-            /* 変更点: linear-gradient(...) を追加 */
-            /* 白色の50% (0.5) を画像の上に重ねます */
             background-image: linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)), url('images/doraemon.jpg');
-
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
         }
 
         .controls { flex: 1; min-width: 300px; }
-        .reference-img { width: 100%; height: 200px; background: #eee; display: flex; align-items: center; justify-content: center; border: 1px dashed #ccc; margin-bottom: 10px; }
         .status { margin-top: 10px; padding: 10px; border-radius: 4px; }
         .success { background: #d4edda; color: #155724; }
         .error { background: #f8d7da; color: #721c24; }
@@ -31,11 +26,14 @@
         label { display: block; margin-bottom: 5px; }
         input[type="text"], select { padding: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
         .instruction { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #ddd; }
+        
+        /* カウント表示用のスタイル */
+        #countDisplay { font-weight: bold; color: #007bff; margin-left: 5px; }
     </style>
 </head>
 <body>
 
-<h1>キャラクター描画データ収集</h1>
+<h1>Dradraw</h1>
 
 <div class="container">
     <div>
@@ -56,9 +54,8 @@
         </div>
         <br>
 
-        <label for="labelInput">被験者ラベル (ID):</label>
-        <input type="text" id="labelInput" value="0" placeholder="例: 0">
-
+        <label for="labelInput">被験者ラベル (ID): <span id="countDisplay">(集計中...)</span></label>
+        <input type="text" id="labelInput" value="0" placeholder="例: 0" onchange="updateCount()">
         <label for="charName">キャラクター名 (自動設定):</label>
         <input type="text" id="charName" value="" readonly style="background-color: #e9ecef; color: #555;">
 
@@ -83,70 +80,86 @@
     const canvas = document.getElementById('drawCanvas');
     const ctx = canvas.getContext('2d');
     let isDrawing = false;
-    
-    // 描画された「線（ストローク）」のリスト。
-    // [ [{x:1, y:1}, ...], [{x:100, y:100}, ...] ] のように複数の線が入る
     let allStrokes = [];
-    
-    // 現在描いている最中の線
     let currentStroke = [];
+
+    // --- 枚数カウント機能 (新規追加) ---
+    async function updateCount() {
+        const label = document.getElementById('labelInput').value;
+        const display = document.getElementById('countDisplay');
+        
+        // 空欄なら0枚とする
+        if (!label) {
+            display.innerText = "(0枚)";
+            return;
+        }
+
+        try {
+            // 作成した get_count.py を呼び出す
+            const res = await fetch(`/cgi-bin/get_count.py?label=${label}`);
+            if (res.ok) {
+                const data = await res.json();
+                // data.faces に「3パーツ揃った枚数」が入っている想定
+                display.innerText = `(${data.faces}枚 完了)`;
+            } else {
+                display.innerText = "(取得エラー)";
+            }
+        } catch (e) {
+            console.error(e);
+            display.innerText = "(-)";
+        }
+    }
 
     // --- 画像切り替え機能 ---
     function changeBgImage() {
         const select = document.getElementById('bgImageSelect');
         const fileName = select.value;
-        const charInput = document.getElementById('charName'); // キャラ名入力欄を取得
+        const charInput = document.getElementById('charName');
         
         if (fileName === "") {
             canvas.style.backgroundImage = 'none';
-            charInput.value = "unknown"; // 画像なしの場合は unknown 等にしておく
+            charInput.value = "unknown";
         } else {
-            // 1. ファイル名から拡張子を取り除く (noumen.jpg -> noumen)
-            // これをキャラクター名としてセット
             const nameBase = fileName.replace(/\.[^/.]+$/, "");
             charInput.value = nameBase;
-
-            // 2. マスク画像のファイル名作成 (noumen_mask.jpg)
             const maskName = nameBase + "_mask.jpg";
 
-            // 3. 背景設定 (マスク -> 白 -> 下絵)
             canvas.style.backgroundImage = `
                 url('images/${maskName}'),
                 linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
                 url('images/${fileName}')
             `;
             
-            // 表示設定
             canvas.style.backgroundSize = 'contain, contain, contain';
             canvas.style.backgroundRepeat = 'no-repeat, no-repeat, no-repeat';
             canvas.style.backgroundPosition = 'center, center, center';
         }
     }
-    window.onload = function() { changeBgImage(); };
 
-    // --- イベントリスナー設定 ---
+    // ページ読み込み時に初期化
+    window.onload = function() { 
+        changeBgImage();
+        updateCount(); // カウント表示も更新
+    };
+
+    // --- 描画イベント ---
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
-    
     canvas.addEventListener('touchstart', (e) => { startDrawing(e.touches[0]); e.preventDefault(); });
     canvas.addEventListener('touchmove', (e) => { draw(e.touches[0]); e.preventDefault(); });
     canvas.addEventListener('touchend', (e) => { stopDrawing(); e.preventDefault(); });
 
     function getPos(event) {
         const rect = canvas.getBoundingClientRect();
-        return {
-            x: Math.round(event.clientX - rect.left),
-            y: Math.round(event.clientY - rect.top)
-        };
+        return { x: Math.round(event.clientX - rect.left), y: Math.round(event.clientY - rect.top) };
     }
 
     function startDrawing(event) {
         isDrawing = true;
-        currentStroke = []; // 新しい線の記録開始
+        currentStroke = [];
         const pos = getPos(event);
-        
         ctx.beginPath();
         ctx.moveTo(pos.x, pos.y);
         recordPoint(pos.x, pos.y);
@@ -155,14 +168,11 @@
     function draw(event) {
         if (!isDrawing) return;
         const pos = getPos(event);
-        
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.strokeStyle = '#000';
-        
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
-        
         recordPoint(pos.x, pos.y);
     }
 
@@ -170,10 +180,7 @@
         if (isDrawing) {
             isDrawing = false;
             ctx.closePath();
-            // 線が短すぎない場合のみ保存
-            if (currentStroke.length > 0) {
-                allStrokes.push(currentStroke);
-            }
+            if (currentStroke.length > 0) allStrokes.push(currentStroke);
         }
     }
 
@@ -183,38 +190,25 @@
 
     function clearCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        allStrokes = []; // データもリセット
+        allStrokes = [];
         currentStroke = [];
         showStatus('キャンバスをリセットしました', 'success');
     }
 
-    // --- 判定ロジック (ストロークごとに判定) ---
     function detectPart(strokePoints) {
         if (!strokePoints || strokePoints.length === 0) return 'unknown';
-
         let sumX = 0, sumY = 0;
-        for (let p of strokePoints) {
-            sumX += p.x;
-            sumY += p.y;
-        }
+        for (let p of strokePoints) { sumX += p.x; sumY += p.y; }
         const avgX = sumX / strokePoints.length;
         const avgY = sumY / strokePoints.length;
-
         const centerX = canvas.width / 2;
         const centerY = 286;
 
-        if (avgY > centerY) {
-            return 'mouth'; // 下半分
-        } else {
-            if (avgX < centerX) {
-                return 'left_eye'; // 左上
-            } else {
-                return 'right_eye'; // 右上
-            }
-        }
+        if (avgY > centerY) return 'mouth';
+        else return (avgX < centerX) ? 'left_eye' : 'right_eye';
     }
 
-    // --- まとめて送信処理 ---
+    // --- 送信処理 ---
     async function sendData() {
         if (allStrokes.length === 0) {
             showStatus('描画データがありません。', 'error');
@@ -225,23 +219,13 @@
         const charName = document.getElementById('charName').value;
         const emotion = document.getElementById('emotionSelect').value;
 
-        // 1. 全ストロークをパーツごとに分類・結合する
-        let partsData = {
-            'left_eye': [],
-            'right_eye': [],
-            'mouth': []
-        };
-
+        let partsData = { 'left_eye': [], 'right_eye': [], 'mouth': [] };
         for (let stroke of allStrokes) {
             const partName = detectPart(stroke);
-            if (partsData[partName]) {
-                partsData[partName] = partsData[partName].concat(stroke);
-            }
+            if (partsData[partName]) partsData[partName] = partsData[partName].concat(stroke);
         }
 
-        // ==========================================
-        // 追加機能: 3パーツ揃っているかチェック
-        // ==========================================
+        // 3パーツチェック
         let missing = [];
         if (partsData['right_eye'].length === 0) missing.push("右目");
         if (partsData['left_eye'].length === 0) missing.push("左目");
@@ -249,11 +233,9 @@
 
         if (missing.length > 0) {
             showStatus(`すべてのパーツを描いてください。\n不足: ${missing.join(', ')}`, 'error');
-            return; // ここで処理を中断して送信させない
+            return;
         }
-        // ==========================================
 
-        // 2. データが存在するパーツだけ送信リストに入れる
         let promises = [];
         let partsToSend = [];
 
@@ -276,7 +258,6 @@
                     if (!res.ok) throw new Error(await res.text());
                     return res.json();
                 });
-                
                 promises.push(p);
             }
         }
@@ -285,12 +266,14 @@
 
         try {
             await Promise.all(promises);
-            
             showStatus(`保存完了！\nフォルダ: data/${emotion}/\n送信済み: ${partsToSend.join(', ')}`, 'success');
             
-            // 次の絵のためにリセット
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             allStrokes = [];
+            
+            // ▼▼▼ 成功したらカウントを更新 ▼▼▼
+            updateCount(); 
+            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         } catch (error) {
             console.error('Error:', error);
