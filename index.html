@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dradraw</title>
+    <title>キャラクター描画データ収集</title>
     <style>
         body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
@@ -27,13 +27,23 @@
         input[type="text"], select { padding: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
         .instruction { font-size: 0.9em; color: #555; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #ddd; }
         
-        /* カウント表示用のスタイル */
-        #countDisplay { font-weight: bold; color: #007bff; margin-left: 5px; }
+        /* 進捗表示用のスタイル */
+        .progress-box {
+            font-size: 0.9em;
+            color: #333;
+            background: #eef;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border: 1px solid #ccd;
+        }
+        .progress-item { margin-left: 10px; }
+        .progress-total { font-weight: bold; color: #007bff; }
     </style>
 </head>
 <body>
 
-<h1>Dradraw</h1>
+<h1>キャラクター描画データ収集</h1>
 
 <div class="container">
     <div>
@@ -54,8 +64,13 @@
         </div>
         <br>
 
-        <label for="labelInput">被験者ラベル (ID): <span id="countDisplay">(集計中...)</span></label>
+        <label for="labelInput">被験者ラベル (ID):</label>
         <input type="text" id="labelInput" value="0" placeholder="例: 0" onchange="updateCount()">
+
+        <div id="progressDisplay" class="progress-box">
+            集計中...
+        </div>
+
         <label for="charName">キャラクター名 (自動設定):</label>
         <input type="text" id="charName" value="" readonly style="background-color: #e9ecef; color: #555;">
 
@@ -83,30 +98,47 @@
     let allStrokes = [];
     let currentStroke = [];
 
-    // --- 枚数カウント機能 (新規追加) ---
+    // --- 枚数カウント機能 (内訳対応版) ---
     async function updateCount() {
         const label = document.getElementById('labelInput').value;
-        const display = document.getElementById('countDisplay');
+        const display = document.getElementById('progressDisplay');
         
-        // 空欄なら0枚とする
         if (!label) {
-            display.innerText = "(0枚)";
+            display.innerHTML = "IDを入力してください";
             return;
         }
 
         try {
-            // 作成した get_count.py を呼び出す
-            const res = await fetch(`/cgi-bin/get_count.py?label=${label}`);
+            // キャッシュ対策で時刻パラメータを追加
+            const res = await fetch(`/cgi-bin/get_count.py?label=${label}&t=${new Date().getTime()}`);
             if (res.ok) {
                 const data = await res.json();
-                // data.faces に「3パーツ揃った枚数」が入っている想定
-                display.innerText = `(${data.faces}枚 完了)`;
+                
+                // 表示用HTMLを作成
+                // ここで data.total を使用しています (以前は data.faces でした)
+                let html = `<span class="progress-total">合計: ${data.total}枚</span><br>`;
+                
+                // 内訳がある場合
+                if (data.breakdown && Object.keys(data.breakdown).length > 0) {
+                    for (let charName in data.breakdown) {
+                        html += `<strong>${charName}:</strong> `;
+                        let emotions = [];
+                        for (let emo in data.breakdown[charName]) {
+                            emotions.push(`${emo}(${data.breakdown[charName][emo]})`);
+                        }
+                        html += `<span class="progress-item">${emotions.join(', ')}</span><br>`;
+                    }
+                } else {
+                    html += `<span style="color:#777; font-size:0.9em;">(データなし)</span>`;
+                }
+                
+                display.innerHTML = html;
             } else {
-                display.innerText = "(取得エラー)";
+                display.innerText = "取得エラー";
             }
         } catch (e) {
             console.error(e);
-            display.innerText = "(-)";
+            display.innerText = "集計失敗";
         }
     }
 
@@ -136,10 +168,9 @@
         }
     }
 
-    // ページ読み込み時に初期化
     window.onload = function() { 
         changeBgImage();
-        updateCount(); // カウント表示も更新
+        updateCount(); 
     };
 
     // --- 描画イベント ---
@@ -225,7 +256,6 @@
             if (partsData[partName]) partsData[partName] = partsData[partName].concat(stroke);
         }
 
-        // 3パーツチェック
         let missing = [];
         if (partsData['right_eye'].length === 0) missing.push("右目");
         if (partsData['left_eye'].length === 0) missing.push("左目");
@@ -271,9 +301,7 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             allStrokes = [];
             
-            // ▼▼▼ 成功したらカウントを更新 ▼▼▼
-            updateCount(); 
-            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+            updateCount();
 
         } catch (error) {
             console.error('Error:', error);
