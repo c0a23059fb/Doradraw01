@@ -216,7 +216,8 @@
     }
 
     function recordPoint(x, y) {
-        currentStroke.push({ x: x, y: y });
+    // 座標に加えて現在時刻(ミリ秒)を記録するように修正
+        currentStroke.push({ x: x, y: y, t: Date.now() });
     }
 
     function clearCanvas() {
@@ -236,7 +237,7 @@
         const centerY = 286;
 
         if (avgY > centerY) return 'mouth';
-        else return (avgX < centerX) ? 'left_eye' : 'right_eye';
+            else return (avgX < centerX) ? 'left_eye' : 'right_eye';
     }
 
     // --- 送信処理 ---
